@@ -119,14 +119,18 @@ let make_accelerateur cpos =
 
 let blocks =  
   [ 
-    make_accelerateur (460,350);
-    make_accelerateur (460,450);
-
-    make_accelerateur (440,350);
-    make_accelerateur (440,450);
-    make_accelerateur (420,350);
-    make_accelerateur  (420,450);
-   
+    make_accelerateur (460,350);make_accelerateur (460,450);
+    make_accelerateur (440,350);make_accelerateur (440,450);
+    make_accelerateur (420,350); make_accelerateur  (420,450);
+    make_accelerateur (400,350); make_accelerateur  (400,450);
+    make_accelerateur (380,350);make_accelerateur  (380,450);
+    make_accelerateur (360,350);make_accelerateur  (360,450);
+    make_accelerateur (340,350);make_accelerateur  (340,450);
+    make_accelerateur (320,350);make_accelerateur  (320,450);
+    make_accelerateur (300,350);make_accelerateur  (300,450);
+    make_accelerateur (280,350);make_accelerateur  (280,450);
+    make_accelerateur (260,350);make_accelerateur  (260,450);
+    make_accelerateur (240,350);make_accelerateur  (240,450);
     make_mur true (645, 400);
     make_mur false (550, 295); make_mur false (350, 295); 
     make_mur false (550, 495); make_mur false (350, 495); make_mur false (150, 495);
@@ -224,11 +228,8 @@ let rec move_electron elec screen () =
       elecs := List.tl !elecs;
       move_electron e screen ()
     | _ -> 
-      print_endline "electron ajouté"; 
       elecs:= {elec with active = false}::!elecs; 
-      Hashtbl.remove actions "cercle";
-      debug_elecs (); 
-      view_scene screen
+      Hashtbl.remove actions "cercle"; view_scene screen
 ;;
 
 
@@ -246,16 +247,28 @@ let rec control screen () =
 	  print_endline "clic de la sourie detecté";
 	  rendu screen ();
 	  move_electron elec screen (); control screen ();
+	| Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_DOWN} ->
+	  Hashtbl.add actions "down" 
+	    (fun s -> elecs := List.map (fun e -> {e with pos = e.pos ++ (0, 5)}) !elecs);
+	| Sdlevent.KEYUP {Sdlevent.keysym=Sdlkey.KEY_DOWN} ->
+	  Hashtbl.remove actions "down";
+	| Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_LEFT} ->
+	  Hashtbl.add actions "left" 
+	    (fun s -> elecs := List.map (fun e -> {e with pos = e.pos ++ (-5, 0)}) !elecs);
+	| Sdlevent.KEYUP {Sdlevent.keysym=Sdlkey.KEY_LEFT} ->
+	  Hashtbl.remove actions "left";
+	| Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_RIGHT} ->
+	  Hashtbl.add actions "right" 
+	    (fun s -> elecs := List.map (fun e -> {e with pos = e.pos ++ (5, 0)}) !elecs);
+	| Sdlevent.KEYUP {Sdlevent.keysym=Sdlkey.KEY_RIGHT} ->
+	  Hashtbl.remove actions "right";
+	| Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_UP} ->
+	  Hashtbl.add actions "up" 
+	    (fun s -> elecs := List.map (fun e -> {e with pos = e.pos ++ (0, -5)}) !elecs);
+	| Sdlevent.KEYUP {Sdlevent.keysym=Sdlkey.KEY_UP} ->
+	  Hashtbl.remove actions "up";
 	| Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_ESCAPE} ->
 	  Sdl.quit ()
-	| Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_DOWN} ->
-	  elecs := List.map (fun e -> {e with pos = e.pos ++ (0, 5)}) !elecs;
-	| Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_LEFT} ->
-	  elecs := List.map (fun e -> {e with pos = e.pos ++ (-5, 0)}) !elecs;
-	| Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_RIGHT} ->
-	  elecs := List.map (fun e -> {e with pos = e.pos ++ (5, 0)}) !elecs;
-	| Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_UP} ->
-	  elecs := List.map (fun e -> {e with pos = e.pos ++ (0, -5)}) !elecs;
 	| _ -> ()
       end
     | None ->()
@@ -273,7 +286,6 @@ let _ =
 
   let (bpp, w, h) = (16, width, heigth) in
   let screen = Sdlvideo.set_video_mode ~w ~h ~bpp [`HWSURFACE] in
-  Sdlkey.enable_key_repeat ~delay:10 ~interval:40 ();
 
   let toInt32 c = Sdlvideo.map_RGB screen c in
   colors := [("white", toInt32 Sdlvideo.white); 
