@@ -117,6 +117,19 @@ let make_accelerateur cpos =
   }
 ;;
 
+let make_fil_magn_inf bas cpos = 
+  let lambda = 300000 in
+  let sign = if bas then 1 else (-1) in
+  {centre = cpos; spirit = if bas then "filmagn_bas.bmp" else "filmagn_haut.bmp"; force = 
+      (fun e ->
+	let xe, ye = e.pos ++(-1)**cpos in
+	let d = dist cpos e.pos in
+	let dir = (-ye, xe) in
+	((sign*lambda) ** dir) // (d*d) 
+      )
+  }
+
+
 let blocks =  
   [ 
     make_accelerateur (460,350);make_accelerateur (460,450);
@@ -138,7 +151,11 @@ let blocks =
     make_mur false (200, 100); make_mur false (400, 100);
 
     make_mur false (550, 5); make_mur false (350, 5); make_mur false (150, 5);
-    make_mur true (645, 100)
+    make_mur true (645, 100);
+
+     make_fil_magn_inf false (130,400);
+     make_fil_magn_inf true (400,200)
+
     
   ];;
 
@@ -149,7 +166,7 @@ let e2 = {pos = (580, 450); vit = (0, 0); forces = (0,0); active = false};;
 let e3 = {pos = (550,440); vit = (0, 0); forces = (0,0); active = false};;
 
 
-let elecs = ref [e1; e2; e3];;
+let elecs = ref [e1; e2];;
 
 let next () = 
   elecs := forces_elecs (List.map calcul_vp !elecs);
@@ -221,7 +238,7 @@ let rec move_electron elec screen () =
 			    Sdlevent.mme_xrel=_; Sdlevent.mme_yrel=_ }  ->
       let g = centre_gravite !elecs in
       let d = dist g (x, y) in
-      let x, y = if d > 50 then g ++ 50 **((x, y) ++ (-1)**g) // d else (x, y) in
+      let x, y = if d > 100 then g ++ 100 **((x, y) ++ (-1)**g) // d else (x, y) in
       let e = {elec with  pos = (x, y); active = true} in
       elecs := e::!elecs;
       rendu screen ();
@@ -242,7 +259,7 @@ let rec control screen () =
 	  let elec = List.find (fun elec -> is_in_a_electron elec.pos (x, y)) (!elecs) in
 	  
 	  Hashtbl.add actions "cercle" 
-	    (fun s ->  draw_cercle (centre_gravite !elecs) 50 s "red");
+	    (fun s ->  draw_cercle (centre_gravite !elecs) 100 s "red");
 	  elecs := List.filter (fun e -> e <> elec) !elecs;
 	  print_endline "clic de la sourie detecté";
 	  rendu screen ();
