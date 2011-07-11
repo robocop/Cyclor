@@ -30,7 +30,7 @@ let draw_cercle (x_c, y_c) r screen c =
 ;;
 
 
-type elec = {pos :int * int; vit : int * int; forces: int * int};;
+type elec = {pos :int * int; vit : int * int; forces: int * int; active:bool};;
 let dt = 1;;
 let r_elec = 10;;
 let k = 5;;
@@ -42,10 +42,10 @@ let ( ** ) k (x, y) = (k*x, k*y);;
 let ( // ) (x, y) k = (x/k, y/k);;
 let ( ++ ) (x, y) (x', y') = (x+x', y+y');;
 
-let calcul_vp {pos = p; vit = v; forces = f} = 
+let calcul_vp {pos = p; vit = v; forces = f; active = b} = 
   let v' = v ++ (dt ** f // 20) in
   let p' = p ++ (dt ** v' // 20)  in
-  {pos = p'; vit = v'; forces = f}
+  {pos = p'; vit = v'; forces = f; active = b}
 ;;
 
 let dist (x, y) (x', y') = 
@@ -140,9 +140,9 @@ let blocks =
 
 
 
-let e1 = {pos = (550,480); vit = (0, 0); forces = (0,0)};;
-let e2 = {pos = (580, 450); vit = (0, 0); forces = (0,0)};;
-let e3 = {pos = (550,440); vit = (0, 0); forces = (0,0)};;
+let e1 = {pos = (550,480); vit = (0, 0); forces = (0,0); active = false};;
+let e2 = {pos = (580, 450); vit = (0, 0); forces = (0,0); active = false};;
+let e3 = {pos = (550,440); vit = (0, 0); forces = (0,0); active = false};;
 
 
 let elecs = ref [e1; e2; e3];;
@@ -157,11 +157,12 @@ let next () =
 let is_in_a_electron (xe, ye) (x, y) = 
   (x-xe)*(x-xe) + (y-ye)*(y-ye) < r_elec*r_elec
 ;;
-let draw_electron p screen = 
-  draw_cercle p 7 screen "grey";
-  draw_cercle p 8 screen "black";
-  draw_cercle p 9 screen "black";
-  draw_cercle p 10 screen "grey"
+let draw_electron e screen =
+  let c1, c2 = if not e.active then "grey", "black" else "red", "red" in
+  draw_cercle e.pos 7 screen c1;
+  draw_cercle e.pos 8 screen c2;
+  draw_cercle e.pos 9 screen c2;
+  draw_cercle e.pos  10 screen c1
 ;;
 
 let affiche_block block screen ()=
@@ -188,7 +189,7 @@ let view_scene screen =
 
   List.iter (fun e -> 
     if fst e.pos >= 0 && snd e.pos > 0 && fst e.pos <= width && snd e.pos <= heigth then
-     draw_electron (e.pos) screen
+     draw_electron e screen
   ) 
     (!elecs); 
   for i = 0 to 3 do draw_cercle (centre_gravite (!elecs)) i screen "red" done;
@@ -214,14 +215,17 @@ let rec move_electron elec screen () =
 			    Sdlevent.mme_state=(*[Sdlmouse.BUTTON_LEFT]*)_; 
 			    Sdlevent.mme_x=x; Sdlevent.mme_y=y; 
 			    Sdlevent.mme_xrel=_; Sdlevent.mme_yrel=_ }  ->
-      let e = {elec with  pos = (x, y)} in
+      let g = centre_gravite !elecs in
+      let d = dist g (x, y) in
+      let x, y = if d > 50 then g ++ 50 **((x, y) ++ (-1)**g) // d else (x, y) in
+      let e = {elec with  pos = (x, y); active = true} in
       elecs := e::!elecs;
-       rendu screen ();
+      rendu screen ();
       elecs := List.tl !elecs;
       move_electron e screen ()
     | _ -> 
       print_endline "electron ajouté"; 
-      elecs:= elec::!elecs; 
+      elecs:= {elec with active = false}::!elecs; 
       Hashtbl.remove actions "cercle";
       debug_elecs (); 
       view_scene screen
@@ -235,8 +239,9 @@ let rec control screen () =
 	| Sdlevent.MOUSEBUTTONDOWN  { Sdlevent.mbe_x = x; Sdlevent.mbe_y = y; } 
 	    when List.exists (fun elec -> is_in_a_electron  elec.pos (x, y)) (!elecs) -> 
 	  let elec = List.find (fun elec -> is_in_a_electron elec.pos (x, y)) (!elecs) in
-	  let g = centre_gravite !elecs in
-	  Hashtbl.add actions "cercle" (fun s ->  draw_cercle g 100 s "red");
+	  
+	  Hashtbl.add actions "cercle" 
+	    (fun s ->  draw_cercle (centre_gravite !elecs) 50 s "red");
 	  elecs := List.filter (fun e -> e <> elec) !elecs;
 	  print_endline "clic de la sourie detecté";
 	  rendu screen ();
