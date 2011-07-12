@@ -9,7 +9,7 @@ module Const =
    struct
      let width, heigth = 650, 500
        (** Nombre de frames par secondes = 1/dt (dt en ms) **)
-     let fps = 20
+     let fps = 40
      let dt = 1000/fps
      let k_elec_repuls = 1000000
      let k_elec_spring = 5
@@ -95,8 +95,10 @@ module Electrons =
       elecs := iter [] !elecs
     let calcul_pos () = 
 	elecs := List.map calcul_vp !elecs
-
+    let decallage () = 
+      centroid !elecs -- (Const.width/2, Const.heigth/2)
     let draw_electron e screen =
+      let e = {e with pos = e.pos -- decallage()} in
       let c1, c2 = if not e.active then "grey", "black" else "red", "red" in
       Bat_Sdl.draw_cercle e.pos 7 c1 screen;
       Bat_Sdl.draw_cercle e.pos 8 c2 screen;
@@ -104,11 +106,8 @@ module Electrons =
       Bat_Sdl.draw_cercle e.pos 10 c1 screen
 
     let draw screen = 
-      List.iter (fun e -> 
-	if fst e.pos >= 0 && snd e.pos > 0 && fst e.pos <= Const.width && snd e.pos <= Const.heigth 
-	then draw_electron e screen)  !elecs;
-	for i = 0 to 3 do Bat_Sdl.draw_cercle (centroid !elecs) i "red"  screen done
-	
+      List.iter (fun e -> draw_electron e screen)  !elecs;
+	for i = 0 to 3 do Bat_Sdl.draw_cercle (centroid !elecs -- decallage()) i "red"  screen done;
   end;;
 
 module Blocks = 
@@ -158,6 +157,7 @@ struct
 	)
     } ::!blocks
   let draw_block block screen =
+    let block = {block with centre = block.centre  --Electrons.decallage()} in
     let s = Sdlvideo.load_BMP block.spirit in
     let w, h, _ = Sdlvideo.surface_dims s in
     let x, y = block.centre ++ (w, h)//(-2) in
@@ -187,6 +187,7 @@ struct
 	)
       }::!checkpoints
   let draw_check check screen = 
+    let check = {check with centre_c = check.centre_c -- Electrons.decallage()} in 
     let c = match check.typec, check.is_active with
       | D, false -> "green"
       | D, true -> "hgreen"
@@ -248,6 +249,7 @@ struct
 			      Sdlevent.mme_state=_; 
 			      Sdlevent.mme_x=x; Sdlevent.mme_y=y; 
 			      Sdlevent.mme_xrel=_; Sdlevent.mme_yrel=_ }  ->
+	let x, y = (x, y) ++ Electrons.decallage() in
 	let g = Electrons.centroid !Electrons.elecs in
 	let d = Electrons.dist g (x, y) in
 	let x, y = if d > 100 then g ++ 100 **((x, y) ++ (-1)**g) // d else (x, y) in
@@ -269,32 +271,23 @@ struct
       | Some e ->
 	begin match e with
 	  | Sdlevent.MOUSEBUTTONDOWN  { Sdlevent.mbe_x = x; Sdlevent.mbe_y = y; } 
-	      when List.exists (fun elec -> Electrons.is_in_a_electron  elec.Electrons.pos (x, y)) (!Electrons.elecs) -> 
-	    let elec = List.find (fun elec -> Electrons.is_in_a_electron elec.Electrons.pos (x, y)) (!Electrons.elecs) in
+	      when List.exists (fun elec -> Electrons.is_in_a_electron  (elec.Electrons.pos--Electrons.decallage()) (x, y)) (!Electrons.elecs) -> 
+	    let elec = List.find (fun elec -> Electrons.is_in_a_electron (elec.Electrons.pos--Electrons.decallage()) (x, y)) (!Electrons.elecs) in
 	    
 	    Hashtbl.add Rendu.actions "cercle" 
-	      (fun s ->  Bat_Sdl.draw_cercle (Electrons.centroid !Electrons.elecs) 100 "red" s);
+	      (fun s -> Bat_Sdl.draw_cercle (Electrons.centroid !Electrons.elecs --Electrons.decallage()) 100 "red" s);
 	    Electrons.elecs := List.filter (fun e -> e <> elec) !Electrons.elecs;
 	    Rendu.rendu screen;
 	    move_electron elec screen; control screen;
-	  | Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_DOWN} ->
-	    dir "down" (0,5);
-	  | Sdlevent.KEYUP {Sdlevent.keysym=Sdlkey.KEY_DOWN} ->
-	    Hashtbl.remove Rendu.actions "down";
-	  | Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_LEFT} ->
-	    dir "left" (-5,0);
-	  | Sdlevent.KEYUP {Sdlevent.keysym=Sdlkey.KEY_LEFT} ->
-	    Hashtbl.remove Rendu.actions "left";
-	  | Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_RIGHT} ->
-	    dir "right" (5,0)
-	  | Sdlevent.KEYUP {Sdlevent.keysym=Sdlkey.KEY_RIGHT} ->
-	    Hashtbl.remove Rendu.actions "right";
-	  | Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_UP} ->
-	    dir "up" (0,-5)
-	  | Sdlevent.KEYUP {Sdlevent.keysym=Sdlkey.KEY_UP} ->
-	    Hashtbl.remove Rendu.actions "up";
-	  | Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_ESCAPE} ->
-	    Sdl.quit ()
+	  | Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_DOWN} -> dir "down" (0,5);
+	  | Sdlevent.KEYUP {Sdlevent.keysym=Sdlkey.KEY_DOWN} -> Hashtbl.remove Rendu.actions "down";
+	  | Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_LEFT} -> dir "left" (-5,0);
+	  | Sdlevent.KEYUP {Sdlevent.keysym=Sdlkey.KEY_LEFT} -> Hashtbl.remove Rendu.actions "left";
+	  | Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_RIGHT} -> dir "right" (5,0)
+	  | Sdlevent.KEYUP {Sdlevent.keysym=Sdlkey.KEY_RIGHT} -> Hashtbl.remove Rendu.actions "right";
+	  | Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_UP} -> dir "up" (0,-5)
+	  | Sdlevent.KEYUP {Sdlevent.keysym=Sdlkey.KEY_UP} -> Hashtbl.remove Rendu.actions "up";
+	  | Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_ESCAPE} -> Sdl.quit ()
 	  | _ -> ()
 	end
       | None ->()
@@ -349,7 +342,6 @@ let _ =
   Checkpoints.make_check Checkpoints.C (155, 300) false;
   Checkpoints.make_check Checkpoints.C (350, 155) true;
   Checkpoints.make_check Checkpoints.A (100, 50) true;
-
 
   while true do
     Rendu.rendu screen;
