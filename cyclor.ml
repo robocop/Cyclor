@@ -82,6 +82,8 @@ let forces_elecs elecs =
 
 
 type block = { centre:int * int; spirit:string; force: elec->(int*int) };;
+type typec = D | A | C;;
+type check = { typec:typec; centre_c: int*int; vert:bool; mutable is_active:bool; is_in:elec list-> bool };;
 
 let lambda = 100000.;;
 let a = 100;;
@@ -118,7 +120,7 @@ let make_accelerateur cpos =
 ;;
 
 let make_fil_magn_inf bas cpos = 
-  let lambda = 300000 in
+  let lambda = 200000 in
   let sign = if bas then 1 else (-1) in
   {centre = cpos; spirit = if bas then "filmagn_bas.bmp" else "filmagn_haut.bmp"; force = 
       (fun e ->
@@ -130,9 +132,24 @@ let make_fil_magn_inf bas cpos =
   }
 
 
+
+let make_check typec cpos vertical = 
+  let w, h = if vertical then 10,100 else 100,10 in
+   { typec=typec; 
+     centre_c=cpos; 
+     is_active=false;
+     vert=vertical;
+     is_in= (
+       fun elecs ->
+	 let xe, ye = (centre_gravite elecs) ++ (-1)**cpos in
+	 abs xe < w/2 && abs ye < h/2
+     )
+   };;
+
+
 let blocks =  
   [ 
-    make_accelerateur (460,350);make_accelerateur (460,450);
+    make_accelerateur (460,350); make_accelerateur (460,450);
     make_accelerateur (440,350);make_accelerateur (440,450);
     make_accelerateur (420,350); make_accelerateur  (420,450);
     make_accelerateur (400,350); make_accelerateur  (400,450);
@@ -152,27 +169,34 @@ let blocks =
 
     make_mur false (550, 5); make_mur false (350, 5); make_mur false (150, 5);
     make_mur true (645, 100);
-
+    make_fil_magn_inf false (500, 100);
      make_fil_magn_inf false (130,400);
-     make_fil_magn_inf true (400,200)
-
+     make_fil_magn_inf true (400,200);
     
   ];;
 
-
+let checks = 
+  [make_check D (500, 400) true;
+   make_check C (155, 300) false;
+   make_check C (350, 155) true;
+   make_check A (100, 50) true;
+  ]
+;;
 
 let e1 = {pos = (550,480); vit = (0, 0); forces = (0,0); active = false};;
 let e2 = {pos = (580, 450); vit = (0, 0); forces = (0,0); active = false};;
 let e3 = {pos = (550,440); vit = (0, 0); forces = (0,0); active = false};;
 
 
-let elecs = ref [e1; e2];;
+let elecs = ref [e1; e2; e3];;
 
 let next () = 
   elecs := forces_elecs (List.map calcul_vp !elecs);
   List.iter (fun b -> 
     elecs := List.map (fun e -> {e with forces = e.forces ++ b.force e}) !elecs
   ) blocks;
+
+  List.iter (fun c -> if c.is_in !elecs then (c.is_active <- true)) checks;
 ;;
 
 let is_in_a_electron (xe, ye) (x, y) = 
@@ -188,10 +212,26 @@ let draw_electron e screen =
 
 let affiche_block block screen ()=
   let s = Sdlvideo.load_BMP block.spirit in
-  let l, h, _ = Sdlvideo.surface_dims s in
-  let x, y = block.centre ++ (l, h)//(-2) in
+  let w, h, _ = Sdlvideo.surface_dims s in
+  let x, y = block.centre ++ (w, h)//(-2) in
   let r = Sdlvideo.rect x y 1 1 in
   Sdlvideo.blit_surface ~src:s ~dst:screen ~dst_rect:r ();
+;;
+
+
+let affiche_check check screen () = 
+  let c = match check.typec, check.is_active with
+    | D, false -> "green"
+    | D, true -> "hgreen"
+    | C, false -> "yellow"
+    | C, true -> "hyellow"
+    | A, false -> "red"
+    | A, true -> "hred"
+  in
+  let h, w = if check.vert then 100,10 else 10, 100 in
+  let x, y = check.centre_c ++ (w, h)//(-2) in
+  let r = Sdlvideo.rect x y w h in
+  Sdlvideo.fill_rect ~rect:r screen (color c);
 ;;
 let debug_elecs () = 
   List.iter (fun e -> Printf.printf "(%d, %d)" (fst e.pos) (snd e.pos)) !elecs;
@@ -203,7 +243,7 @@ let actions = Hashtbl.create 5;;
 let view_scene screen =
   Sdlvideo.fill_rect screen (Sdlvideo.map_RGB screen Sdlvideo.white);
   List.iter (fun b -> affiche_block b screen ()) blocks;
-  
+  List.iter (fun c -> affiche_check c screen ()) checks;
   next ();
 
   Hashtbl.iter (fun _ f -> f screen) actions;
@@ -309,7 +349,12 @@ let _ =
 	     ("red", toInt32 Sdlvideo.red);
 	     ("black", toInt32 Sdlvideo.black); 
 	     ("green", toInt32 Sdlvideo.green);
-	     ("grey" , toInt32 (115, 115, 155))];
+	     ("grey" , toInt32 (115, 115, 155));
+	     ("yellow", toInt32 (255,252,27));
+	     ("hgreen", toInt32 (35,122,29));
+	     ("hyellow", toInt32 (213,211,82));
+	     ("hred", toInt32 (178,30,30))
+	    ];
   Sdlvideo.fill_rect screen (Sdlvideo.map_RGB screen Sdlvideo.white);
   
   loop screen ();
