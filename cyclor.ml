@@ -9,11 +9,11 @@ module Const =
    struct
      let width, heigth = 650, 500
        (** Nombre de frames par secondes = 1/dt (dt en ms) **)
-     let fps = 40
+     let fps = 50
      let dt = 1000/fps
-     let k_elec_repuls = 1000000
+     let k_elec_repuls = 100000
      let k_elec_spring = 5
-     let l0_elec = 100
+     let l0_elec = 40
      let k_elec_shock_absorber = 12
      let r_elec = 10
 
@@ -146,7 +146,7 @@ struct
      )
     } :: !blocks
   let make_inf_magnetic_fil bas cpos = 
-    let lambda = 200000 in
+    let lambda = 300000 in
     let sign = if bas then 1 else (-1) in
     blocks := {centre = cpos; spirit = if bas then "filmagn_bas.bmp" else "filmagn_haut.bmp"; force = 
 	(fun e ->
@@ -155,6 +155,45 @@ struct
 	  let dir = (-ye, xe) in
 	  ((sign*lambda) ** dir) // (d*d) 
 	)
+    } ::!blocks
+
+     (*
+  let cyclo_times = Hashtbl.create 5
+  let make_cyclotron cpos = 
+    let c1, c2 = cpos -- (90, 0), cpos ++ (90, 0) in
+    let periode = 2000 in
+    Hashtbl.add cyclo_times cpos (true, Sdltimer.get_ticks ());
+    let lambda = 200000 in
+    blocks := {
+      centre = cpos; 
+      spirit = "cyclotron.bmp";
+      force = (fun e ->
+	let xe1, ye1 =  e.Electrons.pos -- c1 and xe2, ye2 =   e.Electrons.pos -- c2 in
+	let d1, d2 = Electrons.dist c1 e.Electrons.pos, Electrons.dist c2 e.Electrons.pos in
+	let dir1, dir2 = (-ye1, xe1), (-ye2, xe2) in
+	let b, t = Hashtbl.find cyclo_times cpos in
+	let t' = Sdltimer.get_ticks() in
+	if t' - t > periode then begin Hashtbl.replace cyclo_times cpos (not b, t') end;
+	if b then ((lambda) ** dir1) // (d1*d1) else ((lambda) ** dir2) // (d2*d2)
+      )
+	
+    } ::!blocks
+
+     *)
+
+  let make_unif cpos = 
+    let lambda = 33 in
+    blocks := {
+      centre = cpos; 
+      spirit = "champs_magn_unif.bmp";
+      force = (fun e ->
+	let xe, ye = e.Electrons.pos -- cpos in
+	let d = Electrons.dist (xe, ye) (0,0) in
+	if d < 150 then
+	  let x', y' = e.Electrons.vit in (lambda*y', -lambda*x')
+	else (0,0)
+      )
+	
     } ::!blocks
   let draw_block block screen =
     let block = {block with centre = block.centre  --Electrons.decallage()} in
@@ -287,11 +326,23 @@ struct
 	  | Sdlevent.KEYUP {Sdlevent.keysym=Sdlkey.KEY_RIGHT} -> Hashtbl.remove Rendu.actions "right";
 	  | Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_UP} -> dir "up" (0,-5)
 	  | Sdlevent.KEYUP {Sdlevent.keysym=Sdlkey.KEY_UP} -> Hashtbl.remove Rendu.actions "up";
-	  | Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_ESCAPE} -> Sdl.quit ()
+	  | Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_ESCAPE} -> Sdl.quit (); exit 0;
 	  | _ -> ()
 	end
       | None ->()
 end
+
+
+open Parsemap
+let charge map = 
+  let f = function
+    | Electron pos -> Electrons.create pos
+    | Accelerateurver pos -> Blocks.make_accelerator pos
+    | Wall (b, pos) -> Blocks.make_wall b pos
+    | Inf_magnetic_fil (b, pos) ->  Blocks.make_inf_magnetic_fil b pos
+  in
+  List.iter f (parse map)
+
 
 let _ = 
   Sdl.init [`VIDEO]; 
@@ -310,9 +361,10 @@ let _ =
 	     ("hyellow", toInt32 (213,211,82));
 	     ("hred", toInt32 (178,30,30))
 	    ];
-  Electrons.create (550, 480);
-  Electrons.create (580,450);
-  Electrons.create (550,440);
+
+  (*
+  Electrons.create (550, 400);
+  Electrons.create (570,420);
 
   Blocks.make_accelerator (460,350); Blocks.make_accelerator (460,450);
   Blocks.make_accelerator (440,350);Blocks.make_accelerator (440,450);
@@ -343,6 +395,11 @@ let _ =
   Checkpoints.make_check Checkpoints.C (350, 155) true;
   Checkpoints.make_check Checkpoints.A (100, 50) true;
 
+
+  Blocks.make_unif (-300,30);
+
+  *)
+  charge "map1";
   while true do
     Rendu.rendu screen;
     Controles.control screen;
