@@ -1,9 +1,19 @@
 let ($) f a = f a;;
+let ( **. ) = ( ** );;
 let ( ** ) k (x, y) = (k*x, k*y);;
 let ( // ) (x, y) k = (x/k, y/k);;
 let ( ++ ) (x, y) (x', y') = (x+x', y+y');;
 let ( -- ) (x, y) (x', y') = (x-x', y-y');;
 let sqrt_int x = int_of_float (sqrt $ float_of_int x);;
+
+let integre (++) ( **.) zero f (a, b) pas = 
+  let n = int_of_float $ (b-.a)/.pas in
+  let rec calculs r x = function
+    | 0 -> r
+    | n -> calculs (r ++ (pas **. (f x))) (x +. pas) (n-1)
+  in
+  calculs zero a n
+;;
 
 module Const =
    struct
@@ -19,7 +29,8 @@ module Const =
 
      let wall_half_length = 100
      let k_wall = 100000
-   end;;
+     let pi = 3.14
+   end
 
 module Bat_Sdl = 
   struct
@@ -107,7 +118,8 @@ module Electrons =
 
     let draw screen = 
       List.iter (fun e -> draw_electron e screen)  !elecs;
-	for i = 0 to 3 do Bat_Sdl.draw_cercle (centroid !elecs -- decallage()) i "red"  screen done;
+	for i = 0 to 3 do Bat_Sdl.draw_cercle (centroid !elecs -- decallage()) i "red"  screen done;;
+    Parsemap.add_block "electron" create;;
   end;;
 
 module Blocks = 
@@ -137,14 +149,42 @@ struct
      )
 	      } :: !blocks
   ;;
+  Parsemap.add_block "murelectrover" (make_wall true);;
+  Parsemap.add_block "murelectrohor" (make_wall false);;
   let make_accelerator cpos =
     let lx, ly = 40, 100 in
     blocks := {centre = cpos; spirit = "accelerateurver.bmp"; 
      force = (fun e -> 
        let xe, ye = e.Electrons.pos -- cpos in
-       if (abs xe < lx/2 && abs ye < ly/2) then (-3000, 0) else (0, 0)
+       let x', y' = e.Electrons.vit in
+       let v2 = x'*x' + y'*y' in
+       let a = 10*v2 in
+       if (abs xe < lx/2 && abs ye < ly/2) then (- (min a 3000) , 0) else (0, 0)
      )
     } :: !blocks
+  ;;
+  Parsemap.add_block "accelerateurver" make_accelerator;;
+  let make_virage cpos =
+    let a = 145. in
+    let ( **. ) = Pervasives.( ** ) in
+    blocks := {centre = cpos; spirit = "virage.bmp"; 
+     force = (fun e -> 
+       let xe, ye = e.Electrons.pos -- cpos in
+       let xe', ye' = float_of_int xe, float_of_int ye in
+       let f = fun x -> 
+	  (1000 ** Const.k_wall ** (xe - int_of_float (a *. cos x), ye - int_of_float (a *. sin x)))
+	 // int_of_float (((xe' -. a*.(cos x))**.2. +. (ye' -. a*.(sin x))**.2.)**.(3./.2.))
+       in
+       let m = (fun k (x, y) -> 
+	 (int_of_float $ k *. float_of_int x, int_of_float $ k *. float_of_int y))
+       in	    
+       let fx, fy = (integre (++) m (0, 0) f (0., Const.pi /. 2.) 0.1) in
+       (fx, fy);
+     )
+    } :: !blocks
+  ;;
+  Parsemap.add_block "virage" make_virage;;
+
   let make_inf_magnetic_fil bas cpos = 
     let lambda = 300000 in
     let sign = if bas then 1 else (-1) in
@@ -155,32 +195,10 @@ struct
 	  let dir = (-ye, xe) in
 	  ((sign*lambda) ** dir) // (d*d) 
 	)
-    } ::!blocks
-
-     (*
-  let cyclo_times = Hashtbl.create 5
-  let make_cyclotron cpos = 
-    let c1, c2 = cpos -- (90, 0), cpos ++ (90, 0) in
-    let periode = 2000 in
-    Hashtbl.add cyclo_times cpos (true, Sdltimer.get_ticks ());
-    let lambda = 200000 in
-    blocks := {
-      centre = cpos; 
-      spirit = "cyclotron.bmp";
-      force = (fun e ->
-	let xe1, ye1 =  e.Electrons.pos -- c1 and xe2, ye2 =   e.Electrons.pos -- c2 in
-	let d1, d2 = Electrons.dist c1 e.Electrons.pos, Electrons.dist c2 e.Electrons.pos in
-	let dir1, dir2 = (-ye1, xe1), (-ye2, xe2) in
-	let b, t = Hashtbl.find cyclo_times cpos in
-	let t' = Sdltimer.get_ticks() in
-	if t' - t > periode then begin Hashtbl.replace cyclo_times cpos (not b, t') end;
-	if b then ((lambda) ** dir1) // (d1*d1) else ((lambda) ** dir2) // (d2*d2)
-      )
-	
-    } ::!blocks
-
-     *)
-
+    } ::!blocks;;
+  Parsemap.add_block "filmagn_bas" (make_inf_magnetic_fil true);;
+  Parsemap.add_block "filmagn_haut" (make_inf_magnetic_fil false);;
+ 
   let make_unif cpos = 
     let lambda = 33 in
     blocks := {
@@ -194,7 +212,9 @@ struct
 	else (0,0)
       )
 	
-    } ::!blocks
+    } ::!blocks;;
+
+  Parsemap.add_block "champs_unif" make_unif;;
   let draw_block block screen =
     let block = {block with centre = block.centre  --Electrons.decallage()} in
     let s = Sdlvideo.load_BMP block.spirit in
@@ -333,17 +353,6 @@ struct
 end
 
 
-open Parsemap
-let charge map = 
-  let f = function
-    | Electron pos -> Electrons.create pos
-    | Accelerateurver pos -> Blocks.make_accelerator pos
-    | Wall (b, pos) -> Blocks.make_wall b pos
-    | Inf_magnetic_fil (b, pos) ->  Blocks.make_inf_magnetic_fil b pos
-  in
-  List.iter f (parse map)
-
-
 let _ = 
   Sdl.init [`VIDEO]; 
 
@@ -365,6 +374,7 @@ let _ =
   (*
   Electrons.create (550, 400);
   Electrons.create (570,420);
+  Blocks. make_virage (300, 300);
 
   Blocks.make_accelerator (460,350); Blocks.make_accelerator (460,450);
   Blocks.make_accelerator (440,350);Blocks.make_accelerator (440,450);
@@ -399,7 +409,7 @@ let _ =
   Blocks.make_unif (-300,30);
 
   *)
-  charge "map1";
+  Parsemap.charge "map1"; 
   while true do
     Rendu.rendu screen;
     Controles.control screen;

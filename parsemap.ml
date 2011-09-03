@@ -1,9 +1,5 @@
-type block = 
-  | Electron of (int * int)
-  | Accelerateurver of (int * int)
-  | Wall of bool * (int * int)
-  | Inf_magnetic_fil of bool * (int * int)
-;;
+let blocks : (string,  int * int -> unit) Hashtbl.t = Hashtbl.create 10;;
+let add_block name fct = Hashtbl.add blocks name fct;;
 
 let string_split string separator = 
   let rec aux old c =
@@ -26,20 +22,15 @@ let read file =
   close_in ich;
   str
 ;;
-let s = read "map";;
+
 let parse file = 
   let rec parse' = function
     | [] -> [] 
     | [x; y; t]:: r -> 
       let pos = (int_of_string x, int_of_string y) in
-      let obj = match t with
-	| "murelectrover" ->  Wall(true, pos)
-	| "murelectrohor" ->  Wall(false, pos)
-	| "filmagn_bas" -> Inf_magnetic_fil(true, pos)
-	| "filmagn_haut" -> Inf_magnetic_fil(false, pos)
-	| "accelerateurver" -> Accelerateurver pos
-	| "electron" -> Electron pos
-	| obj -> failwith ("objet "^obj^" non connu")
+      let obj = 
+	if Hashtbl.mem blocks t then (t, pos)
+	else  failwith ("objet "^t^" non connu")
       in
       obj::parse' r
     | _::r -> parse' r
@@ -47,4 +38,9 @@ let parse file =
   parse' (List.map (fun s -> string_split s ' ') (string_split (read file) '\n'))
 ;;
 
-parse "map";;
+
+let view map () = List.iter (fun (id, pos) -> let f = Hashtbl.find blocks id in f pos) map;;
+
+
+let charge map = 
+  view (parse map) ()
